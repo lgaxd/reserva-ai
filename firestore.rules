@@ -1,0 +1,222 @@
+rules_version = '2';
+
+// Regras de segurança do ReservaAí.
+// Tudo o que o app valida antes de gravar também é conferido aqui, no servidor,
+// para que ninguém consiga burlar as regras de negócio chamando a API direto.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funções auxiliares ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function reservaPath(id) {
+      return /databases/$(database)/documents/reservas/$(id);
+    }
+
+    function cotaPath(uid, mes) {
+      return /databases/$(database)/documents/users/$(uid)/cotas/$(mes);
+    }
+
+    function meuPerfil() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    function temPerfil() {
+      return signedIn() && exists(userPath(request.auth.uid));
+    }
+
+    function isSindico() {
+      return temPerfil() && meuPerfil().role == 'sindico';
+    }
+
+    function isMorador() {
+      return temPerfil() && meuPerfil().role == 'morador';
+    }
+
+    function textoEntre(valor, min, max) {
+      return valor is string && valor.size() >= min && valor.size() <= max;
+    }
+
+    // "2026-11-20" -> "2026-11"
+    function mesDaData(data) {
+      return data.split('-')[0] + '-' + data.split('-')[1];
+    }
+
+    // Total da cota ANTES desta requisição (0 se o documento ainda não existe).
+    function totalAntes(uid, mes) {
+      return exists(cotaPath(uid, mes)) ? get(cotaPath(uid, mes)).data.total : 0;
+    }
+
+    // ---------- Usuários ----------
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isSindico());
+
+      // Cadastro: só o próprio usuário cria o seu perfil e sempre como "morador".
+      // O perfil de síndico é definido manualmente no console do Firebase.
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['nome', 'email', 'role', 'bloco', 'apto', 'createdAt'])
+        && request.resource.data.keys().hasAll(['nome', 'email', 'role', 'bloco', 'apto', 'createdAt'])
+        && request.resource.data.role == 'morador'
+        && textoEntre(request.resource.data.nome, 2, 80)
+        && request.resource.data.email == request.auth.token.email
+        && textoEntre(request.resource.data.bloco, 1, 10)
+        && textoEntre(request.resource.data.apto, 1, 10)
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
+
+      // Cota mensal de reservas: users/{uid}/cotas/{AAAA-MM} = { total, ultimaReserva }.
+      // Só pode mudar junto com a reserva correspondente (mesma transação):
+      //  +1 quando o próprio morador cria uma reserva naquele mês;
+      //  -1 quando uma reserva confirmada daquele mês é cancelada.
+      match /cotas/{mes} {
+        allow read: if signedIn() && (request.auth.uid == userId || isSindico());
+
+        allow create, update: if signedIn()
+          && request.resource.data.keys().hasOnly(['total', 'ultimaReserva'])
+          && request.resource.data.total is int
+          && request.resource.data.total >= 0
+          && request.resource.data.total <= 2
+          && request.resource.data.ultimaReserva is string
+          && (incrementoValido() || decrementoValido());
+
+        allow delete: if false;
+
+        function idReserva() {
+          return request.resource.data.ultimaReserva;
+        }
+
+        function incrementoValido() {
+          let depois = getAfter(reservaPath(idReserva())).data;
+          return request.auth.uid == userId
+            && request.resource.data.total == totalAntes(userId, mes) + 1
+            && depois.status == 'confirmada'
+            && depois.moradorId == userId
+            && mesDaData(depois.data) == mes
+            && (!exists(reservaPath(idReserva()))
+                || get(reservaPath(idReserva())).data.status == 'cancelada');
+        }
+
+        function decrementoValido() {
+          let antes = get(reservaPath(idReserva())).data;
+          return (request.auth.uid == userId || isSindico())
+            && request.resource.data.total == totalAntes(userId, mes) - 1
+            && antes.status == 'confirmada'
+            && antes.moradorId == userId
+            && mesDaData(antes.data) == mes
+            && getAfter(reservaPath(idReserva())).data.status == 'cancelada';
+        }
+      }
+    }
+
+    // ---------- Áreas comuns ----------
+
+    match /areas/{areaId} {
+      allow read: if signedIn();
+
+      allow create, update: if isSindico()
+        && request.resource.data.keys().hasOnly(['nome', 'descricao', 'capacidade', 'ativa', 'turnos', 'atualizadaEm'])
+        && request.resource.data.keys().hasAll(['nome', 'descricao', 'capacidade', 'ativa', 'turnos', 'atualizadaEm'])
+        && textoEntre(request.resource.data.nome, 2, 60)
+        && textoEntre(request.resource.data.descricao, 0, 300)
+        && request.resource.data.capacidade is int
+        && request.resource.data.capacidade >= 1
+        && request.resource.data.capacidade <= 1000
+        && request.resource.data.ativa is bool
+        && request.resource.data.turnos is map
+        && request.resource.data.turnos.size() >= 1
+        && request.resource.data.turnos.size() <= 6
+        && request.resource.data.atualizadaEm == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---------- Reservas ----------
+    // ID determinístico: {areaId}_{AAAA-MM-DD}_{turnoId}.
+    // Como só existe UM documento por turno, é impossível haver duas reservas no mesmo horário.
+
+    match /reservas/{reservaId} {
+      // Qualquer usuário logado pode ver a ocupação dos turnos.
+      allow read: if signedIn();
+
+      // Nova reserva (documento inexistente).
+      allow create: if novaReservaValida();
+
+      // Reservar de novo um turno que foi cancelado, ou cancelar uma reserva confirmada.
+      allow update: if (resource.data.status == 'cancelada' && novaReservaValida())
+        || cancelamentoValido();
+
+      allow delete: if false;
+
+      function novaReservaValida() {
+        let d = request.resource.data;
+        let area = get(/databases/$(database)/documents/areas/$(d.areaId)).data;
+        let perfil = meuPerfil();
+        let mes = mesDaData(d.data);
+        let cotaDepois = getAfter(cotaPath(request.auth.uid, mes)).data;
+        return isMorador()
+          && d.keys().hasOnly(['areaId', 'areaNome', 'data', 'turnoId', 'turnoNome', 'turnoInicio', 'turnoFim',
+                               'inicio', 'moradorId', 'moradorNome', 'bloco', 'apto', 'status', 'createdAt'])
+          && d.keys().hasAll(['areaId', 'areaNome', 'data', 'turnoId', 'turnoNome', 'turnoInicio', 'turnoFim',
+                              'inicio', 'moradorId', 'moradorNome', 'bloco', 'apto', 'status', 'createdAt'])
+          && d.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && reservaId == d.areaId + '_' + d.data + '_' + d.turnoId
+          && d.status == 'confirmada'
+          && d.createdAt == request.time
+          // dono da reserva = usuário logado, com os dados do próprio perfil
+          && d.moradorId == request.auth.uid
+          && d.moradorNome == perfil.nome
+          && d.bloco == perfil.bloco
+          && d.apto == perfil.apto
+          // área ativa e turno existente
+          && area.ativa == true
+          && d.turnoId in area.turnos
+          && d.turnoInicio == area.turnos[d.turnoId].inicio
+          && d.turnoFim == area.turnos[d.turnoId].fim
+          // janela: não pode ser no passado nem a mais de 31 dias
+          && d.inicio is timestamp
+          && d.inicio > request.time
+          && d.inicio < request.time + duration.value(31, 'd')
+          // cota mensal atualizada na mesma transação (+1, máximo 2)
+          && cotaDepois.ultimaReserva == reservaId
+          && cotaDepois.total == totalAntes(request.auth.uid, mes) + 1
+          && cotaDepois.total <= 2;
+      }
+
+      function cancelamentoValido() {
+        let d = request.resource.data;
+        let mes = mesDaData(resource.data.data);
+        let dono = resource.data.moradorId;
+        let cotaDepois = getAfter(cotaPath(dono, mes)).data;
+        return resource.data.status == 'confirmada'
+          && d.diff(resource.data).affectedKeys().hasOnly(['status', 'canceladaPor', 'motivo', 'canceladaEm'])
+          && d.status == 'cancelada'
+          && d.canceladaEm == request.time
+          && d.motivo is string
+          && (
+            // morador cancela a própria reserva até 24h antes
+            (request.auth.uid == dono
+              && d.canceladaPor == 'morador'
+              && request.time < resource.data.inicio - duration.value(24, 'h'))
+            ||
+            // síndico cancela qualquer reserva, informando o motivo
+            (isSindico()
+              && d.canceladaPor == 'sindico'
+              && textoEntre(d.motivo, 3, 200))
+          )
+          // cota devolvida na mesma transação (-1)
+          && cotaDepois.ultimaReserva == reservaId
+          && cotaDepois.total == totalAntes(dono, mes) - 1;
+      }
+    }
+  }
+}
