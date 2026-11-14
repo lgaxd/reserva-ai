@@ -19,7 +19,7 @@ Contas de demonstração no projeto Firebase `reservaai-97f09`, que já tem as 3
 | Síndico | `sindico@email.com` | `Senha@12345` |
 | Morador | `morador@email.com` | `Senha@12345` |
 
-> O app já vem configurado para este projeto: basta `npm install` e `npx expo start`, sem precisar de `.env`. Para usar o seu próprio projeto Firebase, siga a seção 2.
+> O app já vem **conectado a este projeto Firebase**, sem nenhuma configuração: basta seguir a seção 2 (`npm install` e `npx expo start`) e entrar com uma das contas acima.
 
 ---
 
@@ -108,69 +108,56 @@ As regras de segurança impedem que alguém se cadastre já como síndico.
 
 ## 2. Como rodar
 
+O app já está conectado ao Firebase do projeto (`reservaai-97f09`), com regras de segurança publicadas, áreas cadastradas e as contas de teste acima. **Não é preciso criar `.env` nem configurar Firebase.**
+
 ### Pré-requisitos
 
 - Node.js 20 ou superior
 - App **Expo Go** no celular (SDK 58), ou um emulador Android / simulador iOS
-- Uma conta Google para criar o projeto no Firebase
 
-> **Atalho:** para só testar com as contas acima, rode `npm install` e `npx expo start` e pule para a seção 2.4. As seções 2.1 a 2.3 e 2.5 servem para usar o seu próprio projeto Firebase.
-
-### 2.1 Criar o projeto Firebase
-
-1. Em <https://console.firebase.google.com>, crie um projeto.
-2. **Authentication > Método de login**: ative **E-mail/senha**.
-3. **Firestore Database**: crie o banco (modo produção, região `southamerica-east1` por exemplo).
-4. **Configurações do projeto > Seus apps**: adicione um app **Web** e copie o objeto `firebaseConfig`.
-
-### 2.2 Configurar e instalar
+### Passo a passo
 
 ```bash
+git clone https://github.com/lgaxd/reserva-ai.git
+cd reserva-ai
 npm install
-cp .env.example .env    # no Windows: copy .env.example .env
-```
-
-Preencha o `.env` com os valores do `firebaseConfig`, nas variáveis `EXPO_PUBLIC_FIREBASE_*`.
-
-### 2.3 Publicar as regras de segurança e o índice
-
-Usando a CLI do Firebase:
-
-```bash
-npx firebase-tools login
-npx firebase-tools use --add          # escolha o projeto criado
-npx firebase-tools deploy --only firestore:rules,firestore:indexes
-```
-
-Outra opção é colar o conteúdo de `firestore.rules` em **Firestore > Regras** e criar o índice composto da coleção `reservas` com `moradorId` (crescente) e `inicio` (decrescente) em **Firestore > Índices**.
-
-### 2.4 Rodar o app
-
-```bash
 npx expo start
 ```
 
-Leia o QR code com o Expo Go (Android) ou com a câmera (iOS).
+Leia o QR code com o Expo Go (Android) ou com a câmera (iOS) e entre com a conta de **síndico** ou de **morador** da tabela acima. Também é possível criar uma conta nova pela tela de cadastro, que entra como morador.
 
-### 2.5 Criar o primeiro síndico e as áreas de exemplo
+**Roteiro sugerido de teste**
+1. Entre como **morador**, abra uma área, escolha uma data e reserve um turno (permita as notificações para receber o lembrete).
+2. Faça uma segunda reserva no mesmo mês: a partir daí o botão "Reservar" fica bloqueado para aquele mês, porque o limite é de 2 reservas.
+3. Em **Minhas reservas**, cancele uma reserva com mais de 24 h de antecedência: a cota volta.
+4. Entre como **síndico** (em outro aparelho, a agenda atualiza em tempo real): veja a reserva na **Agenda** e cancele informando um motivo. O morador verá o motivo no histórico.
+5. Na aba **Áreas** do síndico, desative uma área: ela some para o morador.
 
-1. No app, cadastre uma conta normalmente (ela será criada como morador).
-2. No Console, abra **Firestore > users > {uid da conta}** e mude o campo `role` de `morador` para `sindico`.
-3. Opcional: preencha `SEED_SINDICO_EMAIL` e `SEED_SINDICO_SENHA` no `.env` com essa conta e rode:
-
-   ```bash
-   npm run seed
-   ```
-
-   O script cadastra *Salão de Festas*, *Churrasqueira* e *Quadra Poliesportiva* com seus turnos. Também é possível criar áreas pela aba **Áreas** do síndico.
-4. Cadastre outra conta para usar como morador.
-
-### 2.6 Testes e verificação
+### Testes automatizados
 
 ```bash
 npm test            # Jest: datas, validações, erros e regras de reserva
 npm run typecheck   # TypeScript
+npm run lint        # ESLint
 ```
+
+<details>
+<summary><strong>Opcional: usar outro projeto Firebase</strong></summary>
+
+Só é necessário para rodar o app num Firebase próprio. As variáveis do `.env` têm prioridade sobre o projeto padrão.
+
+1. Em <https://console.firebase.google.com>, crie um projeto, ative **Authentication > E-mail/senha**, crie o **Firestore Database** e adicione um app **Web**.
+2. `cp .env.example .env` e preencha as variáveis `EXPO_PUBLIC_FIREBASE_*` com o `firebaseConfig` do app Web.
+3. Publique as regras e o índice:
+   ```bash
+   npx firebase-tools login
+   npx firebase-tools use --add
+   npx firebase-tools deploy --only firestore:rules,firestore:indexes
+   ```
+4. Cadastre uma conta pelo app e, no Console, mude `role` para `sindico` em **Firestore > users > {uid}**.
+5. Preencha `SEED_SINDICO_EMAIL` e `SEED_SINDICO_SENHA` no `.env` e rode `npm run seed` para criar as áreas de exemplo.
+
+</details>
 
 ---
 
@@ -290,3 +277,4 @@ As regras são a segunda linha de defesa: mesmo alguém chamando a API sem o app
 - Qualquer usuário logado pode ler as reservas, porque o morador precisa saber quais turnos estão ocupados. O app mostra só "Ocupado" para o morador, mas os campos ficam acessíveis pela API. Uma melhoria seria separar a ocupação em uma coleção pública sem dados pessoais.
 - As regras validam que `inicio` está no futuro e dentro de 31 dias, mas não conferem se ele corresponde exatamente à data e ao horário do turno (as regras não têm fuso horário). O app sempre calcula esse valor corretamente.
 - As regras de segurança não têm testes automatizados com o Firebase Emulator, que exigiria Java instalado.
+- A configuração web do Firebase (incluindo a `apiKey`) fica em `src/config/firebase.ts` para que o app funcione sem configuração. Essa chave **não é secreta**: ela vai embutida em qualquer app publicado e só identifica o projeto. O acesso aos dados é controlado pelas regras de segurança do Firestore. Por isso o alerta de "secret" do GitHub é um falso positivo.
