@@ -16,14 +16,21 @@ type AuthState = {
   erroPerfil: Error | null;
 };
 
+type EstadoPerfil = {
+  uid: string;
+  perfil: UserProfile | null;
+  carregado: boolean;
+  erro: Error | null;
+};
+
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [iniciando, setIniciando] = useState(true);
-  const [perfil, setPerfil] = useState<UserProfile | null>(null);
-  const [perfilCarregado, setPerfilCarregado] = useState(false);
-  const [erroPerfil, setErroPerfil] = useState<Error | null>(null);
+  // O estado do perfil guarda o uid a que pertence: se o usuário mudar (logout ou
+  // outra conta), o perfil antigo é ignorado sem precisar resetar estado no efeito.
+  const [estadoPerfil, setEstadoPerfil] = useState<EstadoPerfil | null>(null);
 
   // 1) Escuta login/logout (inclusive a sessão restaurada do AsyncStorage).
   useEffect(() => {
@@ -36,28 +43,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 2) Com o usuário logado, escuta o perfil dele em tempo real.
   useEffect(() => {
-    setPerfil(null);
-    setPerfilCarregado(false);
-    setErroPerfil(null);
     if (!user) return;
+    const uid = user.uid;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsubscribe = observarPerfil(
-      user.uid,
-      (p) => {
+      uid,
+      (perfil) => {
         clearTimeout(timer);
-        setPerfil(p);
-        if (p) {
-          setPerfilCarregado(true);
-        } else {
+        setEstadoPerfil({ uid, perfil, carregado: perfil !== null, erro: null });
+        if (!perfil) {
           // Logo após o cadastro o documento ainda não existe: esperamos alguns
           // segundos antes de concluir que o perfil realmente está faltando.
-          timer = setTimeout(() => setPerfilCarregado(true), 5000);
+          timer = setTimeout(
+            () => setEstadoPerfil({ uid, perfil: null, carregado: true, erro: null }),
+            5000,
+          );
         }
       },
-      (e) => {
-        setErroPerfil(e);
-        setPerfilCarregado(true);
-      },
+      (erro) => setEstadoPerfil({ uid, perfil: null, carregado: true, erro }),
     );
     return () => {
       clearTimeout(timer);
@@ -65,15 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
-  const value = useMemo<AuthState>(
-    () => ({
+  const value = useMemo<AuthState>(() => {
+    const atual = user !== null && estadoPerfil?.uid === user.uid ? estadoPerfil : null;
+    return {
       user,
-      perfil,
-      carregando: iniciando || (user !== null && !perfilCarregado),
-      erroPerfil,
-    }),
-    [user, perfil, iniciando, perfilCarregado, erroPerfil],
-  );
+      perfil: atual?.perfil ?? null,
+      carregando: iniciando || (user !== null && !atual?.carregado),
+      erroPerfil: atual?.erro ?? null,
+    };
+  }, [user, estadoPerfil, iniciando]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

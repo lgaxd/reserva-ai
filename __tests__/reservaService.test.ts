@@ -52,7 +52,8 @@ jest.mock('firebase/firestore', () => {
   };
 });
 
-// importado depois dos mocks
+// jest.mock é "içado" (hoisted) pelo babel, então este import já recebe os mocks.
+// eslint-disable-next-line import/first
 import { cancelarReserva, criarReserva, idReserva } from '@/services/reservaService';
 
 const agora = new Date(2026, 10, 13, 10, 0); // 13/11/2026 10h

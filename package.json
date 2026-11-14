@@ -23,6 +23,8 @@
   "devDependencies": {
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.14",
     "typescript": "~6.0.3"
@@ -34,7 +36,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "seed": "node --env-file=.env scripts/seed.mjs"
+    "seed": "node --env-file=.env scripts/seed.mjs",
+    "lint": "expo lint"
   },
   "private": true,
   "jest": {

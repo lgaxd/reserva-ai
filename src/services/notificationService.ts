@@ -38,6 +38,7 @@ export async function configurarNotificacoes(): Promise<void> {
     // No Android 13+ o pedido de permissão só aparece depois que existe um canal.
     await Notifications.setNotificationChannelAsync(CANAL_ANDROID, {
       name: 'Lembretes de reserva',
+      // eslint-disable-next-line import/namespace -- enum reexportado via `export *`; o tsc confirma que existe
       importance: Notifications.AndroidImportance.HIGH,
     });
   }

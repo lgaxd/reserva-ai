@@ -68,6 +68,7 @@ export default function AgendaScreen() {
       )}
 
       <MotivoModal
+        key={selecionada?.id ?? 'fechado'}
         visible={selecionada !== null}
         titulo="Cancelar reserva"
         descricao={

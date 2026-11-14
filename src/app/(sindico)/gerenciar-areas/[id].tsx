@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -29,41 +29,47 @@ export default function AreaFormScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const nova = id === 'nova';
   const area = useArea(nova ? undefined : id);
-  const salvar = useSalvarArea();
 
-  const [form, setForm] = useState<Form | null>(
-    nova
-      ? {
+  if (nova) {
+    return (
+      <AreaForm
+        inicial={{
           nome: '',
           descricao: '',
           capacidade: '20',
           ativa: true,
           turnos: TURNOS_PADRAO.map((t) => ({ ...t, id: novoTurnoId() })),
-        }
-      : null,
-  );
-  const [erros, setErros] = useState<Erros<'nome' | 'descricao' | 'capacidade' | 'turnos'>>({});
+        }}
+      />
+    );
+  }
+  if (area.isLoading) return <LoadingView />;
+  if (area.isError || !area.data) return <ErrorView error={area.error} onRetry={area.refetch} />;
 
-  // Ao editar, preenche o formulário quando a área chega do Firestore.
-  useEffect(() => {
-    if (!nova && area.data && !form) {
-      const a = area.data;
-      setForm({
+  const a = area.data;
+  // O formulário só é montado quando a área já chegou: os valores iniciais vêm por props.
+  return (
+    <AreaForm
+      id={a.id}
+      inicial={{
         nome: a.nome,
         descricao: a.descricao,
         capacidade: String(a.capacidade),
         ativa: a.ativa,
         turnos: a.turnos,
-      });
-    }
-  }, [nova, area.data, form]);
+      }}
+    />
+  );
+}
 
-  if (!nova && area.isLoading) return <LoadingView />;
-  if (!nova && area.isError) return <ErrorView error={area.error} onRetry={area.refetch} />;
-  if (!form) return <LoadingView />;
+function AreaForm({ id, inicial }: { id?: string; inicial: Form }) {
+  const nova = id === undefined;
+  const salvar = useSalvarArea();
+  const [form, setForm] = useState<Form>(inicial);
+  const [erros, setErros] = useState<Erros<'nome' | 'descricao' | 'capacidade' | 'turnos'>>({});
 
   const set = <K extends keyof Form>(campo: K, valor: Form[K]) =>
-    setForm((f) => (f ? { ...f, [campo]: valor } : f));
+    setForm((f) => ({ ...f, [campo]: valor }));
 
   const setTurno = (turnoId: string, campo: keyof Omit<Turno, 'id'>, valor: string) =>
     set(
@@ -72,13 +78,12 @@ export default function AreaFormScreen() {
     );
 
   async function onSalvar() {
-    if (!form) return;
     const v = validarArea(form);
     setErros(v);
     if (temErros(v)) return;
     try {
       await salvar.mutateAsync({
-        id: nova ? undefined : id,
+        id,
         input: {
           nome: form.nome,
           descricao: form.descricao,

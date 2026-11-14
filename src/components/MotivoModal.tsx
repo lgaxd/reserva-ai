@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing } from '@/theme/colors';
@@ -16,17 +16,14 @@ interface Props {
   onClose: () => void;
 }
 
-/** Modal para o síndico informar o motivo do cancelamento (Alert.prompt só existe no iOS). */
+/**
+ * Modal para o síndico informar o motivo do cancelamento (Alert.prompt só existe no iOS).
+ * Quem usa deve passar uma `key` diferente a cada reserva: assim o React recria o
+ * componente e o campo começa vazio, sem precisar resetar estado em um efeito.
+ */
 export function MotivoModal({ visible, titulo, descricao, loading, onConfirm, onClose }: Props) {
   const [motivo, setMotivo] = useState('');
   const [erro, setErro] = useState<string>();
-
-  useEffect(() => {
-    if (visible) {
-      setMotivo('');
-      setErro(undefined);
-    }
-  }, [visible]);
 
   function confirmar() {
     const e = validarMotivo(motivo);
