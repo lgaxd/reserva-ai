@@ -152,8 +152,8 @@ function AreaForm({ id, inicial }: { id?: string; inicial: Form }) {
             </Pressable>
           </View>
           <View style={styles.row}>
-            <Input label="Início" value={t.inicio} onChangeText={(v) => setTurno(t.id, 'inicio', v)} placeholder="08:00" maxLength={5} keyboardType="numbers-and-punctuation" />
-            <Input label="Fim" value={t.fim} onChangeText={(v) => setTurno(t.id, 'fim', v)} placeholder="12:00" maxLength={5} keyboardType="numbers-and-punctuation" />
+            <Input flex label="Início" value={t.inicio} onChangeText={(v) => setTurno(t.id, 'inicio', v)} placeholder="08:00" maxLength={5} keyboardType="numbers-and-punctuation" />
+            <Input flex label="Fim" value={t.fim} onChangeText={(v) => setTurno(t.id, 'fim', v)} placeholder="12:00" maxLength={5} keyboardType="numbers-and-punctuation" />
           </View>
         </Card>
       ))}

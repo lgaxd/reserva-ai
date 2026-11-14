@@ -52,8 +52,8 @@ export default function CadastroScreen() {
         autoComplete="email"
       />
       <View style={styles.row}>
-        <Input label="Bloco" value={form.bloco} onChangeText={campo('bloco')} error={erros.bloco} autoCapitalize="characters" maxLength={10} />
-        <Input label="Apartamento" value={form.apto} onChangeText={campo('apto')} error={erros.apto} autoCapitalize="characters" maxLength={10} />
+        <Input flex label="Bloco" value={form.bloco} onChangeText={campo('bloco')} error={erros.bloco} autoCapitalize="characters" maxLength={10} />
+        <Input flex label="Apartamento" value={form.apto} onChangeText={campo('apto')} error={erros.apto} autoCapitalize="characters" maxLength={10} />
       </View>
       <Input
         label="Senha"
