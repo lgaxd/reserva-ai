@@ -12,12 +12,14 @@ Projeto do **Checkpoint 3** da disciplina *Mobile Application Development*, turm
 
 ## Contas para teste
 
-> Preencha com contas **descartáveis** do seu projeto Firebase (este README é público).
+Contas de demonstração no projeto Firebase `reservaai-97f09`, que já tem as 3 áreas de exemplo cadastradas:
 
 | Perfil | E-mail | Senha |
 |---|---|---|
-| Síndico | `_____________` | `_____________` |
-| Morador | `_____________` | `_____________` |
+| Síndico | `sindico@email.com` | `Senha@12345` |
+| Morador | `morador@email.com` | `Senha@12345` |
+
+> O app já vem configurado para este projeto: basta `npm install` e `npx expo start`, sem precisar de `.env`. Para usar o seu próprio projeto Firebase, siga a seção 2.
 
 ---
 
@@ -91,7 +93,7 @@ As regras de segurança impedem que alguém se cadastre já como síndico.
 - Reserva cancelada pelo síndico: na próxima vez que o morador abrir *Minhas reservas*, o lembrete daquela reserva é removido do aparelho.
 - Sem internet, credenciais erradas, e-mail já cadastrado, permissão negada pelas regras: todos os erros do Firebase são traduzidos (`src/utils/errors.ts`).
 - Telas de carregando, erro (com "tentar de novo") e lista vazia em todas as listagens, além de pull-to-refresh.
-- `.env` ausente: o app mostra uma tela explicando como configurar.
+- Configuração do Firebase incompleta: o app mostra uma tela explicando como configurar o `.env`.
 
 ### Telas
 
@@ -111,6 +113,8 @@ As regras de segurança impedem que alguém se cadastre já como síndico.
 - Node.js 20 ou superior
 - App **Expo Go** no celular (SDK 58), ou um emulador Android / simulador iOS
 - Uma conta Google para criar o projeto no Firebase
+
+> **Atalho:** para só testar com as contas acima, rode `npm install` e `npx expo start` e pule para a seção 2.4. As seções 2.1 a 2.3 e 2.5 servem para usar o seu próprio projeto Firebase.
 
 ### 2.1 Criar o projeto Firebase
 
