@@ -5,8 +5,8 @@ import { colors } from '@/theme/colors';
 
 /** Área pública. Quem já está logado é mandado para o ponto de entrada. */
 export default function AuthLayout() {
-  const { user } = useAuth();
-  if (user) return <Redirect href="/" />;
+  const { user, cadastrando } = useAuth();
+  if (user && !cadastrando) return <Redirect href="/" />;
 
   return (
     <Stack

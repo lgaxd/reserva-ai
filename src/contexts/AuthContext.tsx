@@ -14,6 +14,13 @@ type AuthState = {
   /** true até sabermos se há sessão salva e, se houver, até o perfil chegar. */
   carregando: boolean;
   erroPerfil: Error | null;
+  /**
+   * true enquanto o cadastro (conta + perfil) está em andamento. O layout público
+   * espera o cadastro terminar antes de redirecionar, para que um erro ao gravar
+   * o perfil ainda apareça na tela de cadastro.
+   */
+  cadastrando: boolean;
+  setCadastrando: (valor: boolean) => void;
 };
 
 type EstadoPerfil = {
@@ -28,6 +35,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [iniciando, setIniciando] = useState(true);
+  const [cadastrando, setCadastrando] = useState(false);
   // O estado do perfil guarda o uid a que pertence: se o usuário mudar (logout ou
   // outra conta), o perfil antigo é ignorado sem precisar resetar estado no efeito.
   const [estadoPerfil, setEstadoPerfil] = useState<EstadoPerfil | null>(null);
@@ -75,8 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       perfil: atual?.perfil ?? null,
       carregando: iniciando || (user !== null && !atual?.carregado),
       erroPerfil: atual?.erro ?? null,
+      cadastrando,
+      setCadastrando,
     };
-  }, [user, estadoPerfil, iniciando]);
+  }, [user, estadoPerfil, iniciando, cadastrando]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { useAuth } from '@/contexts/AuthContext';
 import { cadastrar } from '@/services/authService';
 import { colors, spacing } from '@/theme/colors';
 import { mensagemDeErro } from '@/utils/errors';
@@ -16,6 +17,7 @@ export default function CadastroScreen() {
   const [erros, setErros] = useState<Erros<keyof CadastroInput>>({});
   const [erroGeral, setErroGeral] = useState<string>();
   const [enviando, setEnviando] = useState(false);
+  const { setCadastrando } = useAuth();
 
   const campo = (nome: keyof CadastroInput) => (valor: string) =>
     setForm((f) => ({ ...f, [nome]: valor }));
@@ -26,12 +28,16 @@ export default function CadastroScreen() {
     setErroGeral(undefined);
     if (temErros(v)) return;
     setEnviando(true);
+    // Segura o redirecionamento até a conta E o perfil estarem gravados.
+    setCadastrando(true);
     try {
       await cadastrar(form);
-      // Logado automaticamente: o layout redireciona para a área do morador.
+      // Sucesso: ao liberar a flag, o layout redireciona para a área do morador.
     } catch (e) {
       setErroGeral(mensagemDeErro(e));
       setEnviando(false);
+    } finally {
+      setCadastrando(false);
     }
   }
 
